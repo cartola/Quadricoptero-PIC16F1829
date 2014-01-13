@@ -1,0 +1,16 @@
+1 ciclo = 0.25 us = 0.00025ms
+
+Sinal Positivo Negativo
+Canal 1 = Direta Esquerda/Direita. Máximo para direita. 17506 - 31326
+Canal 2 = Direita Cima/Baixo. Máximo para baixo. 17566 - 31446
+Canal 3 = Esquerda Cima/Baixo. Máximo para cima. 18486 - 30606
+Canal 4 = Esquerda Esquerda/Direita. Máximo para direita. 17706 - 32206
+Canal 5 = Liga/Desliga
+Canal 6 = Trimmer
+
+
+1*  2
+ \ /
+  X
+ / \
+3   4
