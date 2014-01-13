@@ -12,3 +12,4 @@ motor 1 = motor 2 = motor 1 - motor 1 * ((canal 2 - meio canal 2)/meio canal 2/1
 0 - 125 / 125 = -1 => -0.1
 
 motor 2 = motor 3 = motor 2 + motor 2 * ((canal 2 - meio canal 2)/meio canal 2/10)
+ 
