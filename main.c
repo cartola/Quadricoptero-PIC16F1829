@@ -2,11 +2,13 @@
  * Author: Eduardo Camargo
  * Controlling a quadricopter
  */
-
+#include <xc.h>
 #include <htc.h>
-#include <pic16f1829.h>
+#include <stdlib.h>
+//#include <pic16f1829.h>
 
-__CONFIG (FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
+
+__CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
 
 #define TRUE 1
 #define FALSE 0
@@ -42,8 +44,8 @@ __CONFIG (FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
 #define COEF_GYRO_CCLOCKWISE 10
 #define COEF_GYRO_CCLOCKWISE 10
 
-#define MAX_GRYO_VALUES 2
-#define RANGE_GYRO_STILL 5
+#define MAX_GRYO_VALUES 1
+#define RANGE_GYRO_STILL 1
 
 char readChannel1();
 char readChannel2();
@@ -61,6 +63,7 @@ int readGyroPitch(short calibration);
 int readGyroRoll(short calibration);
 int readGyroYaw(short calibration);
 void calibrateGyros();
+void teste();
 
 unsigned int fl_exit = FALSE;
 
@@ -78,415 +81,385 @@ int motor2 = 1;
 int motor3 = 1;
 int motor4 = 1;
 
-int pitch; 
-int roll; 
-int yaw; 
-int pitchAux = 0; 
-int rollAux = 0; 
-int yawAux = 0; 
+int pitch;
+int roll;
+int yaw;
+int pitchAux = 0;
+int rollAux = 0;
+int yawAux = 0;
+int yawAcc = 0;
 int gyroReadNumber = 0;
 
-void main() 
-{
-	/* Internal clock 16MHz */
-	/* [ SPLLEN | IRCF<3:0> | - | SCS<1:0> ] */ 
+long yawAccTeste = 0;
+long count = 0;
+int result = -1;
+
+void main() {
+    /* Internal clock 16MHz */
+    /* [ SPLLEN | IRCF<3:0> | - | SCS<1:0> ] */
     OSCCON = 0b01111111;
-	
-	TRISB = 0b11110000;
-	ANSELB = 0b00000000;
-	TRISC = 0b00000000;
 
-	/* ANALOG - RA2 and RA4 Analog */
-	TRISA = 0b00010100;
-	ANSELA = 0b00010100;
+    TRISB = 0b11110000;
+    ANSELB = 0b00000000;
+    TRISC = 0b00000000;
 
-	/* ANALOG - RC7 Analog */
-	TRISC = 0b10000000;
-	ANSELC = 0b10000000;
+    /* ANALOG - RA2 and RA4 Analog */
+    TRISA = 0b00010100;
+    ANSELA = 0b00010100;
 
-	ADON = 0b1;
-	ADCON1 = 0b11010011;
-	FVRCON = 0b11000010;
-	/* END ANALOG */
+    /* ANALOG - RC7 Analog */
+    TRISC = 0b10000000;
+    ANSELC = 0b10000000;
 
-	/* [ RBPU | INTEDG | T0CS | T0SE | PSA | PS2 | PS1 | PS0 ] */
-	OPTION_REG = 0b11010000;
+    ADON = 0b1;
+    ADCON1 = 0b11010111;
+    FVRCON = 0b11000010;
+    /* END ANALOG */
 
-	/* Timer 1 is used to read the input from controller */
-	T1CON = 0b01000000;
+    /* [ RBPU | INTEDG | T0CS | T0SE | PSA | PS2 | PS1 | PS0 ] */
+    OPTION_REG = 0b11010000;
 
-	/* Sets T2CON for delay used when setting the ESC output */
-	/* [ - | T2OUTPS <3:0> | TMR2ON | T2CKPS <1:0> ] */
-	T2CON = 0b00011001;
-	TMR2IE = 1; /* Enable Timer 2 interrupt */
-	TMR2IF = 0; /* Reset Timer 2 flag */
+    /* Timer 1 is used to read the input from controller */
+    T1CON = 0b01000000;
 
-	/* [ GIE | PEIE | TMR0IE | INTE | IOCIE | TMR0IF | INTF | IOCIF ]*/
-	INTCON = 0b00000000; /* Enable interruption */
+    /* Sets T2CON for delay used when setting the ESC output */
+    /* [ - | T2OUTPS <3:0> | TMR2ON | T2CKPS <1:0> ] */
+    T2CON = 0b00011001;
+    TMR2IE = 1; /* Enable Timer 2 interrupt */
+    TMR2IF = 0; /* Reset Timer 2 flag */
 
-	/* [ IOCBP7 | IOCBP6 | IOCBP5 | IOCBP4 | - | - | - | - ] */
-	IOCBP = 0b00000000; /* Enable interrupt on change positive */
+    /* [ GIE | PEIE | TMR0IE | INTE | IOCIE | TMR0IF | INTF | IOCIF ]*/
+    INTCON = 0b00000000; /* Enable interruption */
 
-	/* [ IOCBN7 | IOCBN6 | IOCBN5 | IOCBN4 | - | - | - | - ] */
-	IOCBN = 0b00000000; /* Enable interrupt on change negative */
+    /* [ IOCBP7 | IOCBP6 | IOCBP5 | IOCBP4 | - | - | - | - ] */
+    IOCBP = 0b00000000; /* Enable interrupt on change positive */
 
-	/* Wait for internal clock stabilization */
-	while (!HFIOFR);
+    /* [ IOCBN7 | IOCBN6 | IOCBN5 | IOCBN4 | - | - | - | - ] */
+    IOCBN = 0b00000000; /* Enable interrupt on change negative */
 
-	calibrateGyros();
+    RA0 = 0;
+    /* Wait for internal clock stabilization */
+    while (!HFIOFR);
 
-	while (TRUE) 
-	{
-		readAndSet();
-		calculate();
+    //calibrateGyros();
 
-		gyroReadNumber++;
-		pitch = readGyroPitch(FALSE);
-		roll = readGyroRoll(FALSE);
-		yaw = readGyroYaw(FALSE);
+    while (TRUE) {
+        readAndSet();
+        calculate();
 
-		if (gyroReadNumber >= MAX_GRYO_VALUES) {
-			gyroReadNumber = 0;
-		}
-	}	
+        gyroReadNumber++;
+        pitch = readGyroPitch(FALSE);
+        roll = readGyroRoll(FALSE);
+        yaw = readGyroYaw(FALSE);
+
+        if (gyroReadNumber >= MAX_GRYO_VALUES) {
+            gyroReadNumber = 0;
+        }
+    }
 }
 
-/* Calculates the duration of the signal from control1 */ 
-char readChannel1() 
-{
-	int duration;
+/* Calculates the duration of the signal from control1 */
+char readChannel1() {
+    int duration;
 
-	TMR1 = 0;
+    TMR1 = 0;
 
-	while (RB4); /* Wait for low */
-	while (!RB4); /* Wait for high */
+    while (RB4); /* Wait for low */
+    while (!RB4); /* Wait for high */
 
-	TMR1ON = TRUE; /* Enable timer 1 to count the time */
-	while(RB4);
-	TMR1ON = FALSE; /* Disable timer 1 */
+    TMR1ON = TRUE; /* Enable timer 1 to count the time */
+    while (RB4);
+    TMR1ON = FALSE; /* Disable timer 1 */
 
-	/* Min = 17506 */
-	/* Max = 31326 */
-	duration = TMR1;
-	if (duration > MAX_WIDTH_CHANNEL1) 
-	{
-		duration = MAX_WIDTH_CHANNEL1;
-	}
-	else if (duration < MIN_WIDTH_CHANNEL1)
-	{
-		duration = MIN_WIDTH_CHANNEL1;
-	}
+    /* Min = 17506 */
+    /* Max = 31326 */
+    duration = TMR1;
+    if (duration > MAX_WIDTH_CHANNEL1) {
+        duration = MAX_WIDTH_CHANNEL1;
+    } else if (duration < MIN_WIDTH_CHANNEL1) {
+        duration = MIN_WIDTH_CHANNEL1;
+    }
 
-	duration = (int)((duration - MIN_WIDTH_CHANNEL1)/54);
+    duration = (int) ((duration - MIN_WIDTH_CHANNEL1) / 54);
 
-	return (char)duration;
+    return (char) duration;
 }
 
-/* Calculates the duration of the signal from control2 */ 
-char readChannel2() 
-{
-	int duration;
+/* Calculates the duration of the signal from control2 */
+char readChannel2() {
+    int duration;
 
-	TMR1 = 0;
+    TMR1 = 0;
 
-	while (RB5); /* Wait for low */
- 	while (!RB5); /* Wait for high */
+    while (RB5); /* Wait for low */
+    while (!RB5); /* Wait for high */
 
-	TMR1ON = TRUE; /* Enable timer 1 to count the time */
-	while(RB5);
-	TMR1ON = FALSE; /* Disable timer 1 */
+    TMR1ON = TRUE; /* Enable timer 1 to count the time */
+    while (RB5);
+    TMR1ON = FALSE; /* Disable timer 1 */
 
-	/* Min = 17566 */
-	/* Max = 31446 */
-	duration = TMR1;
-	if (duration > MAX_WIDTH_CHANNEL2) 
-	{
-		duration = MAX_WIDTH_CHANNEL2;
-	}
-	else if (duration < MIN_WIDTH_CHANNEL2)
-	{
-		duration = MIN_WIDTH_CHANNEL2;
-	}
+    /* Min = 17566 */
+    /* Max = 31446 */
+    duration = TMR1;
+    if (duration > MAX_WIDTH_CHANNEL2) {
+        duration = MAX_WIDTH_CHANNEL2;
+    } else if (duration < MIN_WIDTH_CHANNEL2) {
+        duration = MIN_WIDTH_CHANNEL2;
+    }
 
-	duration = (int)((duration - MIN_WIDTH_CHANNEL2)/54);
+    duration = (int) ((duration - MIN_WIDTH_CHANNEL2) / 54);
 
-	return (char)duration;
+    return (char) duration;
 }
 
-/* Calculates the duration of the signal from control3 */ 
-char readChannel3() 
-{
-	int duration;
+/* Calculates the duration of the signal from control3 */
+char readChannel3() {
+    int duration;
 
-	TMR1 = 0;
+    TMR1 = 0;
 
-	while (RB6); /* Wait for low */
-	while (!RB6); /* Wait for high */
+    while (RB6); /* Wait for low */
+    while (!RB6); /* Wait for high */
 
-	TMR1ON = TRUE; /* Enable timer 1 to count the time */
-	while(RB6);
-	TMR1ON = FALSE; /* Disable timer 1 */
+    TMR1ON = TRUE; /* Enable timer 1 to count the time */
+    while (RB6);
+    TMR1ON = FALSE; /* Disable timer 1 */
 
-	/* Min = 18486 */
-	/* Max = 30606 */
-	duration = TMR1;
-	if (duration > MAX_WIDTH_CHANNEL3) 
-	{
-		duration = MAX_WIDTH_CHANNEL3;
-	}
-	else if (duration < MIN_WIDTH_CHANNEL3)
-	{
-		duration = MIN_WIDTH_CHANNEL3;
-	}
+    /* Min = 18486 */
+    /* Max = 30606 */
+    duration = TMR1;
+    if (duration > MAX_WIDTH_CHANNEL3) {
+        duration = MAX_WIDTH_CHANNEL3;
+    } else if (duration < MIN_WIDTH_CHANNEL3) {
+        duration = MIN_WIDTH_CHANNEL3;
+    }
 
-	duration = (int)((duration - MIN_WIDTH_CHANNEL3)/48);
+    duration = (int) ((duration - MIN_WIDTH_CHANNEL3) / 48);
 
-	return (char)duration;
+    return (char) duration;
 }
 
-/* Calculates the duration of the signal from control4 */ 
-char readChannel4() 
-{
-	int duration;
+/* Calculates the duration of the signal from control4 */
+char readChannel4() {
+    int duration;
 
-	TMR1 = 0;
+    TMR1 = 0;
 
-	while (RB7); /* Wait for low */
-	while (!RB7); /* Wait for high */
+    while (RB7); /* Wait for low */
+    while (!RB7); /* Wait for high */
 
-	TMR1ON = TRUE; /* Enable timer 1 to count the time */
-	while(RB7);
-	TMR1ON = FALSE; /* Disable timer 1 */
+    TMR1ON = TRUE; /* Enable timer 1 to count the time */
+    while (RB7);
+    TMR1ON = FALSE; /* Disable timer 1 */
 
-	/* Min = 17706 */
-	/* Max = 32206 */
-	duration = TMR1;
-	if (duration > MAX_WIDTH_CHANNEL4) 
-	{
-		duration = MAX_WIDTH_CHANNEL4;
-	}
-	else if (duration < MIN_WIDTH_CHANNEL4)
-	{
-		duration = MIN_WIDTH_CHANNEL4;
-	}
+    /* Min = 17706 */
+    /* Max = 32206 */
+    duration = TMR1;
+    if (duration > MAX_WIDTH_CHANNEL4) {
+        duration = MAX_WIDTH_CHANNEL4;
+    } else if (duration < MIN_WIDTH_CHANNEL4) {
+        duration = MIN_WIDTH_CHANNEL4;
+    }
 
-	duration = (int)((duration - MIN_WIDTH_CHANNEL4)/57);
+    duration = (int) ((duration - MIN_WIDTH_CHANNEL4) / 57);
 
-	return (char)duration;
+    return (char) duration;
 }
 
 /* Reset the ESC sending a pulse for 1ms */
-void resetESC() 
-{
-	/* Reset ESC 1 */
-	RC5 = ON;
-	__delay_us(1000);
-	RC5 = OFF;
-	__delay_us(19000);
+void resetESC() {
+    /* Reset ESC 1 */
+    RC5 = ON;
+    __delay_us(1000);
+    RC5 = OFF;
+    __delay_us(19000);
 }
 
 /* Garantees duration between 1 and 251 */
-char filter(int duration) 
-{
-	if (duration < 1) 
-	{
-		duration = 1;
-	} 
-	else if (duration > MAX_DURATION)
-	{
-		duration = MAX_DURATION;
-	}
+char filter(int duration) {
+    if (duration < 1) {
+        duration = 1;
+    }
+    else if (duration > MAX_DURATION) {
+        duration = MAX_DURATION;
+    }
 
-	return duration;
+    return duration;
 }
 
 /* Sets the ESC with the correct signal. 
  * The signal lenght must be between 1ms to 2ms. */
-void setESC1(char duration) 
-{
-	PR2 = duration;  /* When TMR2 = PR2, TMR2IF is set */
-	TMR2 = 0;        /* Reset timer2 */
-	RC1 = ON;        /* Turn on RC5 */
-	__delay_us(990);
-	TMR2ON = TRUE;	 /* Turn on Timer 2 */
-	while (!TMR2IF); /* Wait for interrupt */
-	TMR2ON = FALSE;  /* Turn off Timer 2 */
-	RC1 = OFF;		 /* Turn off RC5 */
-	TMR2IF = FALSE;  /* Reset the interrupt flag */
+void setESC1(char duration) {
+    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
+    TMR2 = 0; /* Reset timer2 */
+    RC1 = ON; /* Turn on RC5 */
+    __delay_us(990);
+    TMR2ON = TRUE; /* Turn on Timer 2 */
+    while (!TMR2IF); /* Wait for interrupt */
+    TMR2ON = FALSE; /* Turn off Timer 2 */
+    RC1 = OFF; /* Turn off RC5 */
+    TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal. 
  * The signal lenght must be between 1ms to 2ms. */
-void setESC2(char duration) 
-{
-	PR2 = duration;  /* When TMR2 = PR2, TMR2IF is set */
-	TMR2 = 0;        /* Reset timer2 */
-	RC2 = ON;        /* Turn on RC5 */
-	__delay_us(990);
-	TMR2ON = TRUE;	 /* Turn on Timer 2 */
-	while (!TMR2IF); /* Wait for interrupt */
-	TMR2ON = FALSE;  /* Turn off Timer 2 */
-	RC2 = OFF;		 /* Turn off RC5 */
-	TMR2IF = FALSE;  /* Reset the interrupt flag */
+void setESC2(char duration) {
+    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
+    TMR2 = 0; /* Reset timer2 */
+    RC2 = ON; /* Turn on RC5 */
+    __delay_us(990);
+    TMR2ON = TRUE; /* Turn on Timer 2 */
+    while (!TMR2IF); /* Wait for interrupt */
+    TMR2ON = FALSE; /* Turn off Timer 2 */
+    RC2 = OFF; /* Turn off RC5 */
+    TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal. 
  * The signal lenght must be between 1ms to 2ms. */
-void setESC3(char duration) 
-{
-	PR2 = duration;  /* When TMR2 = PR2, TMR2IF is set */
-	TMR2 = 0;        /* Reset timer2 */
-	RC3 = ON;        /* Turn on RC5 */
-	__delay_us(990);
-	TMR2ON = TRUE;	 /* Turn on Timer 2 */
-	while (!TMR2IF); /* Wait for interrupt */
-	TMR2ON = FALSE;  /* Turn off Timer 2 */
-	RC3 = OFF;		 /* Turn off RC5 */
-	TMR2IF = FALSE;  /* Reset the interrupt flag */
+void setESC3(char duration) {
+    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
+    TMR2 = 0; /* Reset timer2 */
+    RC3 = ON; /* Turn on RC5 */
+    __delay_us(990);
+    TMR2ON = TRUE; /* Turn on Timer 2 */
+    while (!TMR2IF); /* Wait for interrupt */
+    TMR2ON = FALSE; /* Turn off Timer 2 */
+    RC3 = OFF; /* Turn off RC5 */
+    TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal. 
  * The signal lenght must be between 1ms to 2ms. */
-void setESC4(char duration) 
-{
-	PR2 = duration;  /* When TMR2 = PR2, TMR2IF is set */
-	TMR2 = 0;        /* Reset timer2 */
-	RC4 = ON;        /* Turn on RC5 */
-	__delay_us(990);
-	TMR2ON = TRUE;	 /* Turn on Timer 2 */
-	while (!TMR2IF); /* Wait for interrupt */
-	TMR2ON = FALSE;  /* Turn off Timer 2 */
-	RC4 = OFF;		 /* Turn off RC5 */
-	TMR2IF = FALSE;  /* Reset the interrupt flag */
+void setESC4(char duration) {
+    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
+    TMR2 = 0; /* Reset timer2 */
+    RC4 = ON; /* Turn on RC5 */
+    __delay_us(990);
+    TMR2ON = TRUE; /* Turn on Timer 2 */
+    while (!TMR2IF); /* Wait for interrupt */
+    TMR2ON = FALSE; /* Turn off Timer 2 */
+    RC4 = OFF; /* Turn off RC5 */
+    TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
 /* Read the gyroscope for pitch (forward and backward) */
-int readGyroPitch(short calibration)
-{
-	int voltage;
-	int test = 0;
-	ADCON0 = 0b00001001; // Start analogic reading for RA2 / AN2
-	GO_nDONE = 1; 	
-	while (GO_nDONE);    // Wait for reading]
-		
-	voltage = ADRESH;
-	voltage *= 256;
-	voltage += ADRESL;		
+int readGyroPitch(short calibration) {
+    int voltage;
+    int test = 0;
+    ADCON0 = 0b00001001; // Start analogic reading for RA2 / AN2
+    GO_nDONE = 1;
+    while (GO_nDONE); // Wait for reading]
 
-	if (calibration)
-	{
-		return voltage;		
-	}
-	
-	pitchAux += voltage;
-	if (gyroReadNumber >= MAX_GRYO_VALUES)
-	{
-		pitch = pitchAux/MAX_GRYO_VALUES;
-		pitchAux = 0;
-	}
-	
-	return pitch;
+    voltage = ADRESH;
+    voltage *= 256;
+    voltage += ADRESL;
+
+    if (calibration) {
+        return voltage;
+    }
+
+    pitchAux += voltage;
+    if (gyroReadNumber >= MAX_GRYO_VALUES) {
+        pitch = pitchAux / MAX_GRYO_VALUES;
+        pitchAux = 0;
+    }
+
+    return pitch;
 }
 
 /* Read the gyroscope for roll (left and right) */
-int readGyroRoll(short calibration)
-{
-	int voltage;
+int readGyroRoll(short calibration) {
+    int voltage;
 
-	ADCON0 = 0b00001111; // Start analogic reading for RA4 / AN3
-	while (GO_nDONE);    // Wait for reading
-	voltage = ADRESH;
-	voltage *= 256;
-	voltage += ADRESL;		
+    ADCON0 = 0b00001111; // Start analogic reading for RA4 / AN3
+    while (GO_nDONE); // Wait for reading
+    voltage = ADRESH;
+    voltage *= 256;
+    voltage += ADRESL;
 
-	if (calibration)
-	{
-		return voltage;		
-	}
+    if (calibration) {
+        return voltage;
+    }
 
-	rollAux += voltage;
-	if (gyroReadNumber >= MAX_GRYO_VALUES)
-	{
-		roll = rollAux/MAX_GRYO_VALUES;
-		rollAux = 0;
-	}
+    rollAux += voltage;
+    if (gyroReadNumber >= MAX_GRYO_VALUES) {
+        roll = rollAux / MAX_GRYO_VALUES;
+        rollAux = 0;
+    }
 
-	return roll;
+    return roll;
 }
 
 /* Read the gyroscope for roll (clockwise and counterclockwise) */
-int readGyroYaw(short calibration)
-{
-	int voltage;
+int readGyroYaw(short calibration) {
+    int voltage;
 
-	ADCON0 = 0b00100111; // Start analogic reading for RC7 / AN9
-	while (GO_nDONE);    // Wait for reading
-	voltage = ADRESH;
-	voltage *= 256;
-	voltage += ADRESL;		
+    ADCON0 = 0b00100111; // Start analogic reading for RC7 / AN9
+    while (GO_nDONE); // Wait for reading
+    voltage = ADRESH;
+    voltage *= 256;
+    voltage += ADRESL;
 
-	if (calibration)
-	{
-		return voltage;		
-	}
+    if (calibration) {
+        return voltage;
+    }
 
-	yawAux += voltage;
-	if (gyroReadNumber >= MAX_GRYO_VALUES)
-	{
-		yaw = yawAux/MAX_GRYO_VALUES;
-		yawAux = 0;
-	}
+    yawAux += voltage;
+    if (gyroReadNumber >= MAX_GRYO_VALUES) {
+        yaw = yawAux / MAX_GRYO_VALUES;
+        yawAux = 0;
+    }
 
-	return yaw;
+    return yaw;
 }
 
-void readAndSet() 
-{
-	inputControl1 = readChannel1();
-	setESC1(motor1);
-	setESC2(motor2);
-	setESC3(motor3);
-	setESC4(motor4);
+void readAndSet() {
+    inputControl1 = readChannel1();
+    setESC1(motor1);
+    setESC2(motor2);
+    setESC3(motor3);
+    setESC4(motor4);
 
-	inputControl2 = readChannel2();
-	setESC1(motor1);
-	setESC2(motor2);
-	setESC3(motor3);
-	setESC4(motor4);
+    inputControl2 = readChannel2();
+    setESC1(motor1);
+    setESC2(motor2);
+    setESC3(motor3);
+    setESC4(motor4);
 
-	inputControl3 = readChannel3();
-	setESC1(motor1);
-	setESC2(motor2);
-	setESC3(motor3);
-	setESC4(motor4);
+    inputControl3 = readChannel3();
+    setESC1(motor1);
+    setESC2(motor2);
+    setESC3(motor3);
+    setESC4(motor4);
 
-	inputControl4 = readChannel4();
-	setESC1(motor1);
-	setESC2(motor2);
-	setESC3(motor3);
-	setESC4(motor4); 
+    inputControl4 = readChannel4();
+    setESC1(motor1);
+    setESC2(motor2);
+    setESC3(motor3);
+    setESC4(motor4);
 
-	/* Just for test */
-/*	inputControl1 = readChannel1();
-	setESC1(1);
-	setESC2(1);
-	setESC3(1);
-	setESC4(1);
-	inputControl2 = readChannel2();
-	setESC1(1);
-	setESC2(1);
-	setESC3(1);
-	setESC4(1);
-	inputControl3 = readChannel3();
-	setESC1(1);
-	setESC2(1);
-	setESC3(1);
-	setESC4(1);
-	inputControl4 = readChannel4();
-	setESC1(1);
-	setESC2(1);
-	setESC3(1);
-	setESC4(1);*/
+    /* Just for test */
+    /*	inputControl1 = readChannel1();
+            setESC1(1);
+            setESC2(1);
+            setESC3(1);
+            setESC4(1);
+            inputControl2 = readChannel2();
+            setESC1(1);
+            setESC2(1);
+            setESC3(1);
+            setESC4(1);
+            inputControl3 = readChannel3();
+            setESC1(1);
+            setESC2(1);
+            setESC3(1);
+            setESC4(1);
+            inputControl4 = readChannel4();
+            setESC1(1);
+            setESC2(1);
+            setESC3(1);
+            setESC4(1);*/
 }
 
 // void calculate()
@@ -523,67 +496,105 @@ void readAndSet()
 // 	motor4 = filter(motor4);
 // }
 
-void calibrateGyros()
-{
-	__delay_ms(3000);
- 	zeroGyroPitch = readGyroPitch(TRUE);
- 	zeroGyroPitch = readGyroPitch(TRUE);
-	zeroGyroRoll = readGyroRoll(TRUE);
-	zeroGyroRoll = readGyroRoll(TRUE);
-	zeroGyroYaw = readGyroYaw(TRUE);
-	zeroGyroYaw = readGyroYaw(TRUE);
+void calibrateGyros() {
+    __delay_ms(5);
+    zeroGyroPitch = readGyroPitch(TRUE);
+    zeroGyroRoll = readGyroRoll(TRUE);
+    __delay_ms(1);
+    zeroGyroYaw = readGyroYaw(TRUE);
 
- 	pitch = zeroGyroPitch;
-	roll = zeroGyroRoll;
-	yaw = zeroGyroYaw;
+    pitch = zeroGyroPitch;
+    roll = zeroGyroRoll;
+    yaw = zeroGyroYaw;
 }
 
+void calculate() {
+    int pitchAux = pitch;
+    int rollAux = roll;
+    int yawControl = yaw;    
 
-void calculate ()
-{
-	int pitchAux = pitch;
-	int rollAux = roll;
-	int yawAux = yaw;
+    inputControl1 = filter(inputControl1); /* Yaw */
+    inputControl2 = filter(inputControl2); /* Pitch */
+    inputControl3 = filter(inputControl3); /* Throttle */
+    inputControl4 = filter(inputControl4); /* Roll */
 
- 	inputControl1 = filter(inputControl1); /* Yaw */
- 	inputControl2 = filter(inputControl2); /* Pitch */
- 	inputControl3 = filter(inputControl3); /* Throttle */
- 	inputControl4 = filter(inputControl4); /* Roll */
+    motor1 = motor2 = motor3 = motor4 = inputControl3;
+    pitchAux += ((inputControl2 - MIDDLE_CHANNEL2) / 2);
+    rollAux += ((inputControl4 - MIDDLE_CHANNEL4) / 2);
+    yawControl += ((inputControl1 - MIDDLE_CHANNEL1) / 2);
 
-	motor1 = motor2 = motor3 = motor4 = inputControl3;
-	pitchAux += ((inputControl2 - MIDDLE_CHANNEL2)/2);
-	rollAux += ((inputControl4 - MIDDLE_CHANNEL4)/2);
-	yawAux += ((inputControl1 - MIDDLE_CHANNEL1)/2);
+    /*if (!((pitchAux > zeroGyroPitch - RANGE_GYRO_STILL) && (pitchAux < zeroGyroPitch + RANGE_GYRO_STILL)))
+    {
+    //if (pitch > zeroGyroPitch)
+            motor1 += ((pitchAux - zeroGyroPitch)/8);
+            motor2 += ((pitchAux - zeroGyroPitch)/8);
+            motor3 -= ((pitchAux - zeroGyroPitch)/8);
+            motor4 -= ((pitchAux - zeroGyroPitch)/8);
+    }
 
-	if (!((pitchAux > zeroGyroPitch - RANGE_GYRO_STILL) && (pitchAux < zeroGyroPitch + RANGE_GYRO_STILL)))
-	{
-	//if (pitch > zeroGyroPitch)
-		motor1 += ((pitchAux - zeroGyroPitch)/8);
-		motor2 += ((pitchAux - zeroGyroPitch)/8);
-		motor3 -= ((pitchAux - zeroGyroPitch)/8);
-		motor4 -= ((pitchAux - zeroGyroPitch)/8);
-	}
+    if (!((rollAux > zeroGyroRoll - RANGE_GYRO_STILL) && (rollAux < zeroGyroRoll + RANGE_GYRO_STILL)))
+    {
+            motor1 -= ((rollAux - zeroGyroRoll)/8);
+            motor4 -= ((rollAux - zeroGyroRoll)/8);
+            motor2 += ((rollAux - zeroGyroRoll)/8);
+            motor3 += ((rollAux - zeroGyroRoll)/8);
+    }
 
-	if (!((rollAux > zeroGyroRoll - RANGE_GYRO_STILL) && (rollAux < zeroGyroRoll + RANGE_GYRO_STILL))) 
-	{
-		motor1 -= ((rollAux - zeroGyroRoll)/8);
-		motor4 -= ((rollAux - zeroGyroRoll)/8);
-		motor2 += ((rollAux - zeroGyroRoll)/8);
-		motor3 += ((rollAux - zeroGyroRoll)/8);
-	}
+    if (!((yawAux > zeroGyroYaw - RANGE_GYRO_STILL) && (yawAux < zeroGyroYaw + RANGE_GYRO_STILL)))
+    {
+            motor1 += ((yawAux - zeroGyroYaw)/8);
+            motor3 += ((yawAux - zeroGyroYaw)/8);
+            motor2 -= ((yawAux - zeroGyroYaw)/8);
+            motor4 -= ((yawAux - zeroGyroYaw)/8);
+    }*/
 
-	if (!((yawAux > zeroGyroYaw - RANGE_GYRO_STILL) && (yawAux < zeroGyroYaw + RANGE_GYRO_STILL))) 
-	{
-		motor1 += ((yawAux - zeroGyroYaw)/8);
-		motor3 += ((yawAux - zeroGyroYaw)/8);
-		motor2 -= ((yawAux - zeroGyroYaw)/8);
-		motor4 -= ((yawAux - zeroGyroYaw)/8);
-	}
+    if (abs(yaw - zeroGyroYaw) > RANGE_GYRO_STILL) {
+        if (yaw > zeroGyroYaw) {
+            /* Está girando no sentido horário(?) */
+            yawAcc += 1;
+        } else {
+            /* Está girando no sentido anti-horário(?) */
+            yawAcc -= 1;
+        }
+    }
 
-//	motor1 = motor2 = motor3 = motor4 = 0;
- 	motor1 = filter(motor1);
- 	motor2 = filter(motor2);
- 	motor3 = filter(motor3);
- 	motor4 = filter(motor4);
+    motor1 += yawAcc;
+    motor3 += yawAcc;
+    motor2 -= yawAcc;
+    motor4 -= yawAcc;
+
+    if ((inputControl3 > 5) && (inputControl3 < 15)) {
+        calibrateGyros();
+    }
+
+    if (inputControl3 < 5) {
+        motor1 = motor2 = motor3 = motor4 = 0;
+        yawAcc = 0;
+        yawAccTeste = 0;
+        count = 0;
+    }
+    teste();
+    /*if (!((yawControl > zeroGyroYaw - RANGE_GYRO_STILL) && (yawControl < zeroGyroYaw + RANGE_GYRO_STILL)))
+    {
+        motor1 += ((yawAux - zeroGyroYaw)/8);
+        motor3 += ((yawAux - zeroGyroYaw)/8);
+        motor2 -= ((yawAux - zeroGyroYaw)/8);
+        motor4 -= ((yawAux - zeroGyroYaw)/8);
+    }*/
+
+    motor1 = filter(motor1);
+    motor2 = filter(motor2);
+    motor3 = filter(motor3);
+    motor4 = filter(motor4);
+   // motor1 = motor2 = motor3 = motor4 = 0;
 }
 
+void teste() {
+
+    yawAccTeste += yaw;
+    count++;
+
+    if (count > 100) {
+        result = yawAccTeste/count;
+    }
+}
