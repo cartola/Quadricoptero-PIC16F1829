@@ -2,8 +2,8 @@ ___awdiv: CODE, 1255 0 83
 _readAndSet: CODE, 1338 0 104
 ___aldiv: CODE, 1558 0 130
 _setESC2: CODE, 534 0 22
-__stringtab: STRING, 5 0 1
-__stringdata: STRING, 6 0 4
+__stringtab: STRING, 4 0 1
+__stringdata: STRING, 5 0 4
 _abs: CODE, 478 0 14
 _putch: CODE, 455 0 1
 _main: CODE, 1442 0 116
