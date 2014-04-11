@@ -5,6 +5,7 @@
 #include <xc.h>
 #include <htc.h>
 #include <stdlib.h>
+#include <conio.h>
 //#include <pic16f1829.h>
 
 
@@ -51,7 +52,6 @@ char readChannel1();
 char readChannel2();
 char readChannel3();
 char readChannel4();
-void resetESC();
 void setESC1(char duration);
 void setESC2(char duration);
 void setESC3(char duration);
@@ -265,16 +265,6 @@ char readChannel4() {
 
     return (char) duration;
 }
-
-/* Reset the ESC sending a pulse for 1ms */
-void resetESC() {
-    /* Reset ESC 1 */
-    RC5 = ON;
-    __delay_us(1000);
-    RC5 = OFF;
-    __delay_us(19000);
-}
-
 /* Garantees duration between 1 and 251 */
 char filter(int duration) {
     if (duration < 1) {
@@ -292,12 +282,12 @@ char filter(int duration) {
 void setESC1(char duration) {
     PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
     TMR2 = 0; /* Reset timer2 */
-    RC1 = ON; /* Turn on RC5 */
+    RC1 = ON; /* Turn on RC1 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
     while (!TMR2IF); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC1 = OFF; /* Turn off RC5 */
+    RC1 = OFF; /* Turn off RC1 */
     TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
@@ -306,12 +296,12 @@ void setESC1(char duration) {
 void setESC2(char duration) {
     PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
     TMR2 = 0; /* Reset timer2 */
-    RC2 = ON; /* Turn on RC5 */
+    RC2 = ON; /* Turn on RC2 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
     while (!TMR2IF); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC2 = OFF; /* Turn off RC5 */
+    RC2 = OFF; /* Turn off RC2 */
     TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
@@ -320,12 +310,12 @@ void setESC2(char duration) {
 void setESC3(char duration) {
     PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
     TMR2 = 0; /* Reset timer2 */
-    RC3 = ON; /* Turn on RC5 */
+    RC3 = ON; /* Turn on RC3 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
     while (!TMR2IF); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC3 = OFF; /* Turn off RC5 */
+    RC3 = OFF; /* Turn off RC3 */
     TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
@@ -334,12 +324,12 @@ void setESC3(char duration) {
 void setESC4(char duration) {
     PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
     TMR2 = 0; /* Reset timer2 */
-    RC4 = ON; /* Turn on RC5 */
+    RA5 = ON; /* Turn on RA5 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
     while (!TMR2IF); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC4 = OFF; /* Turn off RC5 */
+    RA5 = OFF; /* Turn off RA5 */
     TMR2IF = FALSE; /* Reset the interrupt flag */
 }
 
@@ -550,10 +540,10 @@ void calculate() {
 
     if (abs(yaw - zeroGyroYaw) > RANGE_GYRO_STILL) {
         if (yaw > zeroGyroYaw) {
-            /* Est√° girando no sentido hor√°rio(?) */
+            /* Est· girando no sentido hor·rio(?) */
             yawAcc += 1;
         } else {
-            /* Est√° girando no sentido anti-hor√°rio(?) */
+            /* Est· girando no sentido anti-hor·rio(?) */
             yawAcc -= 1;
         }
     }
@@ -586,6 +576,7 @@ void calculate() {
     motor2 = filter(motor2);
     motor3 = filter(motor3);
     motor4 = filter(motor4);
+    cputs("aaa");
    // motor1 = motor2 = motor3 = motor4 = 0;
 }
 
