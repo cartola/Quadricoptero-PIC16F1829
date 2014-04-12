@@ -3,33 +3,37 @@
  * Controlling a quadricopter
  */
 #include <xc.h>
-#include <htc.h>
-#include <stdlib.h>
-#include <conio.h>
-//#include <pic16f1829.h>
+#include <stdlib.h>  // Funções matemáticas básicas como abs
+#include <stdio.h>   // Funções de I/O para o RS-232
+#include "config.h"  // Configurações iniciais do PIC
+#include "globals.h" // Constantes globais
+#include "control.h" // Funções de leitura do controle
+#include "escs.h"    // Funções de escrita nos ESCs
+#include "gyros.h"   // Funções de leitura dos gyroscópios
 
+/* Importante: _XTAL_FREQ Definido no globals.h */
 
-__CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
+//__CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
+// CONFIG1
+#pragma config FOSC = INTOSC    // Oscillator Selection (INTOSC oscillator: I/O function on CLKIN pin)
+#pragma config WDTE = OFF       // Watchdog Timer Enable (WDT disabled)
+#pragma config PWRTE = OFF      // Power-up Timer Enable (PWRT disabled)
+#pragma config MCLRE = ON       // MCLR Pin Function Select (MCLR/VPP pin function is MCLR)
+#pragma config CP = OFF         // Flash Program Memory Code Protection (Program memory code protection is disabled)
+#pragma config CPD = OFF        // Data Memory Code Protection (Data memory code protection is disabled)
+#pragma config BOREN = OFF      // Brown-out Reset Enable (Brown-out Reset disabled)
+#pragma config CLKOUTEN = OFF   // Clock Out Enable (CLKOUT function is disabled. I/O or oscillator function on the CLKOUT pin)
+#pragma config IESO = OFF       // Internal/External Switchover (Internal/External Switchover mode is disabled)
+#pragma config FCMEN = OFF      // Fail-Safe Clock Monitor Enable (Fail-Safe Clock Monitor is disabled)
 
-#define TRUE 1
-#define FALSE 0
-#define ON 1
-#define OFF 0
+// CONFIG2
+#pragma config WRT = OFF        // Flash Memory Self-Write Protection (Write protection off)
+#pragma config PLLEN = ON       // PLL Enable (4x PLL enabled)
+#pragma config STVREN = OFF     // Stack Overflow/Underflow Reset Enable (Stack Overflow or Underflow will not cause a Reset)
+#pragma config BORV = LO        // Brown-out Reset Voltage Selection (Brown-out Reset Voltage (Vbor), low trip point selected.)
+#pragma config LVP = OFF        // Low-Voltage Programming Enable (High-voltage on MCLR/VPP must be used for programming)
 
-#define _XTAL_FREQ 16000000
-
-// Maximum power of any channel
-#define MAX_DURATION 251
-
-#define MIN_WIDTH_CHANNEL1 17506
-#define MAX_WIDTH_CHANNEL1 31326
-#define MIN_WIDTH_CHANNEL2 17566
-#define MAX_WIDTH_CHANNEL2 31446
-#define MIN_WIDTH_CHANNEL3 18486
-#define MAX_WIDTH_CHANNEL3 30606
-#define MIN_WIDTH_CHANNEL4 17706
-#define MAX_WIDTH_CHANNEL4 32206
-
+/* Valor que define o quando os controles estão em respouso */
 #define MIDDLE_CHANNEL1 128
 #define MIDDLE_CHANNEL2 132
 #define MIDDLE_CHANNEL4 128
@@ -41,28 +45,11 @@ __CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
 #define COEF_CLOCKWISE 10
 #define COEF_CCLOCKWISE 10
 
-#define COEF_GYRO_CCLOCKWISE 10
-#define COEF_GYRO_CCLOCKWISE 10
-#define COEF_GYRO_CCLOCKWISE 10
-
-#define MAX_GRYO_VALUES 1
 #define RANGE_GYRO_STILL 1
 
-char readChannel1();
-char readChannel2();
-char readChannel3();
-char readChannel4();
-void setESC1(char duration);
-void setESC2(char duration);
-void setESC3(char duration);
-void setESC4(char duration);
 char filter(int duration);
 void readAndSet();
 void calculate();
-int readGyroPitch(short calibration);
-int readGyroRoll(short calibration);
-int readGyroYaw(short calibration);
-void calibrateGyros();
 void teste();
 
 unsigned int fl_exit = FALSE;
@@ -84,37 +71,17 @@ int motor4 = 1;
 int pitch;
 int roll;
 int yaw;
-int pitchAux = 0;
-int rollAux = 0;
-int yawAux = 0;
+
 int yawAcc = 0;
-int gyroReadNumber = 0;
 
 long yawAccTeste = 0;
 long count = 0;
 int result = -1;
 
 void main() {
-    /* Internal clock 16MHz */
-    /* [ SPLLEN | IRCF<3:0> | - | SCS<1:0> ] */
-    OSCCON = 0b01111111;
-
-    TRISB = 0b11110000;
-    ANSELB = 0b00000000;
-    TRISC = 0b00000000;
-
-    /* ANALOG - RA2 and RA4 Analog */
-    TRISA = 0b00010100;
-    ANSELA = 0b00010100;
-
-    /* ANALOG - RC7 Analog */
-    TRISC = 0b10000000;
-    ANSELC = 0b10000000;
-
-    ADON = 0b1;
-    ADCON1 = 0b11010111;
-    FVRCON = 0b11000010;
-    /* END ANALOG */
+    configure_Oscillator();
+    configure_Ports();
+    configure_Analog;
 
     /* [ RBPU | INTEDG | T0CS | T0SE | PSA | PS2 | PS1 | PS0 ] */
     OPTION_REG = 0b11010000;
@@ -158,113 +125,6 @@ void main() {
     }
 }
 
-/* Calculates the duration of the signal from control1 */
-char readChannel1() {
-    int duration;
-
-    TMR1 = 0;
-
-    while (RB4); /* Wait for low */
-    while (!RB4); /* Wait for high */
-
-    TMR1ON = TRUE; /* Enable timer 1 to count the time */
-    while (RB4);
-    TMR1ON = FALSE; /* Disable timer 1 */
-
-    /* Min = 17506 */
-    /* Max = 31326 */
-    duration = TMR1;
-    if (duration > MAX_WIDTH_CHANNEL1) {
-        duration = MAX_WIDTH_CHANNEL1;
-    } else if (duration < MIN_WIDTH_CHANNEL1) {
-        duration = MIN_WIDTH_CHANNEL1;
-    }
-
-    duration = (int) ((duration - MIN_WIDTH_CHANNEL1) / 54);
-
-    return (char) duration;
-}
-
-/* Calculates the duration of the signal from control2 */
-char readChannel2() {
-    int duration;
-
-    TMR1 = 0;
-
-    while (RB5); /* Wait for low */
-    while (!RB5); /* Wait for high */
-
-    TMR1ON = TRUE; /* Enable timer 1 to count the time */
-    while (RB5);
-    TMR1ON = FALSE; /* Disable timer 1 */
-
-    /* Min = 17566 */
-    /* Max = 31446 */
-    duration = TMR1;
-    if (duration > MAX_WIDTH_CHANNEL2) {
-        duration = MAX_WIDTH_CHANNEL2;
-    } else if (duration < MIN_WIDTH_CHANNEL2) {
-        duration = MIN_WIDTH_CHANNEL2;
-    }
-
-    duration = (int) ((duration - MIN_WIDTH_CHANNEL2) / 54);
-
-    return (char) duration;
-}
-
-/* Calculates the duration of the signal from control3 */
-char readChannel3() {
-    int duration;
-
-    TMR1 = 0;
-
-    while (RB6); /* Wait for low */
-    while (!RB6); /* Wait for high */
-
-    TMR1ON = TRUE; /* Enable timer 1 to count the time */
-    while (RB6);
-    TMR1ON = FALSE; /* Disable timer 1 */
-
-    /* Min = 18486 */
-    /* Max = 30606 */
-    duration = TMR1;
-    if (duration > MAX_WIDTH_CHANNEL3) {
-        duration = MAX_WIDTH_CHANNEL3;
-    } else if (duration < MIN_WIDTH_CHANNEL3) {
-        duration = MIN_WIDTH_CHANNEL3;
-    }
-
-    duration = (int) ((duration - MIN_WIDTH_CHANNEL3) / 48);
-
-    return (char) duration;
-}
-
-/* Calculates the duration of the signal from control4 */
-char readChannel4() {
-    int duration;
-
-    TMR1 = 0;
-
-    while (RB7); /* Wait for low */
-    while (!RB7); /* Wait for high */
-
-    TMR1ON = TRUE; /* Enable timer 1 to count the time */
-    while (RB7);
-    TMR1ON = FALSE; /* Disable timer 1 */
-
-    /* Min = 17706 */
-    /* Max = 32206 */
-    duration = TMR1;
-    if (duration > MAX_WIDTH_CHANNEL4) {
-        duration = MAX_WIDTH_CHANNEL4;
-    } else if (duration < MIN_WIDTH_CHANNEL4) {
-        duration = MIN_WIDTH_CHANNEL4;
-    }
-
-    duration = (int) ((duration - MIN_WIDTH_CHANNEL4) / 57);
-
-    return (char) duration;
-}
 /* Garantees duration between 1 and 251 */
 char filter(int duration) {
     if (duration < 1) {
@@ -275,133 +135,6 @@ char filter(int duration) {
     }
 
     return duration;
-}
-
-/* Sets the ESC with the correct signal. 
- * The signal lenght must be between 1ms to 2ms. */
-void setESC1(char duration) {
-    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
-    TMR2 = 0; /* Reset timer2 */
-    RC1 = ON; /* Turn on RC1 */
-    __delay_us(990);
-    TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
-    TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC1 = OFF; /* Turn off RC1 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
-}
-
-/* Sets the ESC with the correct signal. 
- * The signal lenght must be between 1ms to 2ms. */
-void setESC2(char duration) {
-    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
-    TMR2 = 0; /* Reset timer2 */
-    RC2 = ON; /* Turn on RC2 */
-    __delay_us(990);
-    TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
-    TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC2 = OFF; /* Turn off RC2 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
-}
-
-/* Sets the ESC with the correct signal. 
- * The signal lenght must be between 1ms to 2ms. */
-void setESC3(char duration) {
-    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
-    TMR2 = 0; /* Reset timer2 */
-    RC3 = ON; /* Turn on RC3 */
-    __delay_us(990);
-    TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
-    TMR2ON = FALSE; /* Turn off Timer 2 */
-    RC3 = OFF; /* Turn off RC3 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
-}
-
-/* Sets the ESC with the correct signal. 
- * The signal lenght must be between 1ms to 2ms. */
-void setESC4(char duration) {
-    PR2 = duration; /* When TMR2 = PR2, TMR2IF is set */
-    TMR2 = 0; /* Reset timer2 */
-    RA5 = ON; /* Turn on RA5 */
-    __delay_us(990);
-    TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
-    TMR2ON = FALSE; /* Turn off Timer 2 */
-    RA5 = OFF; /* Turn off RA5 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
-}
-
-/* Read the gyroscope for pitch (forward and backward) */
-int readGyroPitch(short calibration) {
-    int voltage;
-    int test = 0;
-    ADCON0 = 0b00001001; // Start analogic reading for RA2 / AN2
-    GO_nDONE = 1;
-    while (GO_nDONE); // Wait for reading]
-
-    voltage = ADRESH;
-    voltage *= 256;
-    voltage += ADRESL;
-
-    if (calibration) {
-        return voltage;
-    }
-
-    pitchAux += voltage;
-    if (gyroReadNumber >= MAX_GRYO_VALUES) {
-        pitch = pitchAux / MAX_GRYO_VALUES;
-        pitchAux = 0;
-    }
-
-    return pitch;
-}
-
-/* Read the gyroscope for roll (left and right) */
-int readGyroRoll(short calibration) {
-    int voltage;
-
-    ADCON0 = 0b00001111; // Start analogic reading for RA4 / AN3
-    while (GO_nDONE); // Wait for reading
-    voltage = ADRESH;
-    voltage *= 256;
-    voltage += ADRESL;
-
-    if (calibration) {
-        return voltage;
-    }
-
-    rollAux += voltage;
-    if (gyroReadNumber >= MAX_GRYO_VALUES) {
-        roll = rollAux / MAX_GRYO_VALUES;
-        rollAux = 0;
-    }
-
-    return roll;
-}
-
-/* Read the gyroscope for roll (clockwise and counterclockwise) */
-int readGyroYaw(short calibration) {
-    int voltage;
-
-    ADCON0 = 0b00100111; // Start analogic reading for RC7 / AN9
-    while (GO_nDONE); // Wait for reading
-    voltage = ADRESH;
-    voltage *= 256;
-    voltage += ADRESL;
-
-    if (calibration) {
-        return voltage;
-    }
-
-    yawAux += voltage;
-    if (gyroReadNumber >= MAX_GRYO_VALUES) {
-        yaw = yawAux / MAX_GRYO_VALUES;
-        yawAux = 0;
-    }
-
-    return yaw;
 }
 
 void readAndSet() {
@@ -486,17 +219,7 @@ void readAndSet() {
 // 	motor4 = filter(motor4);
 // }
 
-void calibrateGyros() {
-    __delay_ms(5);
-    zeroGyroPitch = readGyroPitch(TRUE);
-    zeroGyroRoll = readGyroRoll(TRUE);
-    __delay_ms(1);
-    zeroGyroYaw = readGyroYaw(TRUE);
 
-    pitch = zeroGyroPitch;
-    roll = zeroGyroRoll;
-    yaw = zeroGyroYaw;
-}
 
 void calculate() {
     int pitchAux = pitch;
@@ -576,7 +299,6 @@ void calculate() {
     motor2 = filter(motor2);
     motor3 = filter(motor3);
     motor4 = filter(motor4);
-    cputs("aaa");
    // motor1 = motor2 = motor3 = motor4 = 0;
 }
 
