@@ -13,9 +13,9 @@
 
 /* Importante: _XTAL_FREQ Definido no globals.h */
 
-//__CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
+__CONFIG(FOSC_INTOSC & WDTE_OFF & PWRTE_OFF & MCLRE_ON & LVP_OFF);
 // CONFIG1
-#pragma config FOSC = INTOSC    // Oscillator Selection (INTOSC oscillator: I/O function on CLKIN pin)
+/*#pragma config FOSC = INTOSC    // Oscillator Selection (INTOSC oscillator: I/O function on CLKIN pin)
 #pragma config WDTE = OFF       // Watchdog Timer Enable (WDT disabled)
 #pragma config PWRTE = OFF      // Power-up Timer Enable (PWRT disabled)
 #pragma config MCLRE = ON       // MCLR Pin Function Select (MCLR/VPP pin function is MCLR)
@@ -28,10 +28,10 @@
 
 // CONFIG2
 #pragma config WRT = OFF        // Flash Memory Self-Write Protection (Write protection off)
-#pragma config PLLEN = ON       // PLL Enable (4x PLL enabled)
+#pragma config PLLEN = OFF       // PLL Enable (4x PLL enabled)
 #pragma config STVREN = OFF     // Stack Overflow/Underflow Reset Enable (Stack Overflow or Underflow will not cause a Reset)
 #pragma config BORV = LO        // Brown-out Reset Voltage Selection (Brown-out Reset Voltage (Vbor), low trip point selected.)
-#pragma config LVP = OFF        // Low-Voltage Programming Enable (High-voltage on MCLR/VPP must be used for programming)
+#pragma config LVP = OFF        // Low-Voltage Programming Enable (High-voltage on MCLR/VPP must be used for programming)*/
 
 /* Valor que define o quando os controles estão em respouso */
 #define MIDDLE_CHANNEL1 128
@@ -59,18 +59,10 @@ char inputControl2; /* Back and forward */
 char inputControl3; /* Throtlle */
 char inputControl4; /* Left and right */
 
-int zeroGyroPitch;
-int zeroGyroRoll;
-int zeroGyroYaw;
-
 int motor1 = 1;
 int motor2 = 1;
 int motor3 = 1;
 int motor4 = 1;
-
-int pitch;
-int roll;
-int yaw;
 
 int yawAcc = 0;
 
@@ -78,35 +70,30 @@ long yawAccTeste = 0;
 long count = 0;
 int result = -1;
 
+/* Trata as interrupções do PIC */
+void interrupt RS232(void)
+{
+    /* Lê caracter da entrada serial */
+    if (RCIF) {
+        //caracter = RCREG;
+        //char_received = 1;
+        RCIF = 0; //  limpa flag de interrupção de recepção
+    } else if (TMR2IF) {
+        escSet = TRUE;
+        TMR2IF = 0;
+    }
+}
+
 void main() {
     configure_Oscillator();
     configure_Ports();
-    configure_Analog;
+    configure_Analog();
+    configure_Interrupts();
+    configure_Timer();
+    configure_SerialPort(9600, 1);
 
-    /* [ RBPU | INTEDG | T0CS | T0SE | PSA | PS2 | PS1 | PS0 ] */
-    OPTION_REG = 0b11010000;
-
-    /* Timer 1 is used to read the input from controller */
-    T1CON = 0b01000000;
-
-    /* Sets T2CON for delay used when setting the ESC output */
-    /* [ - | T2OUTPS <3:0> | TMR2ON | T2CKPS <1:0> ] */
-    T2CON = 0b00011001;
-    TMR2IE = 1; /* Enable Timer 2 interrupt */
-    TMR2IF = 0; /* Reset Timer 2 flag */
-
-    /* [ GIE | PEIE | TMR0IE | INTE | IOCIE | TMR0IF | INTF | IOCIF ]*/
-    INTCON = 0b00000000; /* Enable interruption */
-
-    /* [ IOCBP7 | IOCBP6 | IOCBP5 | IOCBP4 | - | - | - | - ] */
-    IOCBP = 0b00000000; /* Enable interrupt on change positive */
-
-    /* [ IOCBN7 | IOCBN6 | IOCBN5 | IOCBN4 | - | - | - | - ] */
-    IOCBN = 0b00000000; /* Enable interrupt on change negative */
-
-    RA0 = 0;
     /* Wait for internal clock stabilization */
-    while (!HFIOFR);
+    //while (!HFIOFR);
 
     //calibrateGyros();
 
@@ -270,6 +257,8 @@ void calculate() {
             yawAcc -= 1;
         }
     }
+
+    printf("%d\n\r", yaw);
 
     motor1 += yawAcc;
     motor3 += yawAcc;

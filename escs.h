@@ -17,6 +17,8 @@ void setESC2(char duration);
 void setESC3(char duration);
 void setESC4(char duration);
 
+int escSet = 0;
+
 #ifdef	__cplusplus
 }
 #endif

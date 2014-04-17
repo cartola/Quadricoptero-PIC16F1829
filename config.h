@@ -15,6 +15,9 @@ extern "C" {
 void configure_Oscillator();
 void configure_Ports();
 void configure_Analog();
+void configure_SerialPort(long baud_rate, int mode);
+void configure_Interrupts();
+void configure_Timer();
 
 #ifdef	__cplusplus
 }

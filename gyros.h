@@ -18,6 +18,14 @@ int readGyroPitch(short calibration);
 int readGyroRoll(short calibration);
 int readGyroYaw(short calibration);
 void calibrateGyros();
+int gyroReadNumber = 0;
+int zeroGyroPitch;
+int zeroGyroRoll;
+int zeroGyroYaw;
+
+int pitch;
+int roll;
+int yaw;
 
 #ifdef	__cplusplus
 }

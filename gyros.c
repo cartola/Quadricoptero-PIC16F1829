@@ -12,7 +12,7 @@ int pitchAux = 0;
 int rollAux = 0;
 int yawAux = 0;
 
-int gyroReadNumber = 0;
+
 
 /* Read the gyroscope for pitch (forward and backward) */
 int readGyroPitch(short calibration) {

@@ -19,10 +19,10 @@ void setESC1(char duration) {
     RC1 = ON; /* Turn on RC1 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
+    while (!escSet); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
     RC1 = OFF; /* Turn off RC1 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
+    escSet = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal.
@@ -33,10 +33,10 @@ void setESC2(char duration) {
     RC2 = ON; /* Turn on RC2 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
+    while (!escSet); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
     RC2 = OFF; /* Turn off RC2 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
+    escSet = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal.
@@ -47,10 +47,10 @@ void setESC3(char duration) {
     RC3 = ON; /* Turn on RC3 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
+    while (!escSet); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
     RC3 = OFF; /* Turn off RC3 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
+    escSet = FALSE; /* Reset the interrupt flag */
 }
 
 /* Sets the ESC with the correct signal.
@@ -61,8 +61,8 @@ void setESC4(char duration) {
     RA5 = ON; /* Turn on RA5 */
     __delay_us(990);
     TMR2ON = TRUE; /* Turn on Timer 2 */
-    while (!TMR2IF); /* Wait for interrupt */
+    while (!escSet); /* Wait for interrupt */
     TMR2ON = FALSE; /* Turn off Timer 2 */
     RA5 = OFF; /* Turn off RA5 */
-    TMR2IF = FALSE; /* Reset the interrupt flag */
+    escSet = FALSE; /* Reset the interrupt flag */
 }
